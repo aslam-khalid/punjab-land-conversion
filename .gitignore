@@ -1,0 +1,33 @@
+# Data (large / regenerable — do not commit)
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# Models
+models/*.joblib
+models/*.pt
+models/*.h5
+
+# Credentials
+.env
+*service_account*.json
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Streamlit
+.streamlit/secrets.toml
