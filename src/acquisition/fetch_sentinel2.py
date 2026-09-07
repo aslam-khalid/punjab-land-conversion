@@ -32,10 +32,11 @@ from src.utils.gee_auth import init_gee
 def get_district_geometry(district: str) -> ee.Geometry:
     """Look up a Punjab district boundary from the GAUL admin-2 dataset."""
     admin = ee.FeatureCollection(GEE_ADMIN_BOUNDARIES)
+    gee_district = district if district.endswith(" District") else f"{district} District"
     feature = admin.filter(
         ee.Filter.And(
             ee.Filter.eq(GEE_ADMIN_COUNTRY_FIELD, GEE_ADMIN_COUNTRY_VALUE),
-            ee.Filter.eq(GEE_ADMIN_DISTRICT_FIELD, district),
+            ee.Filter.eq(GEE_ADMIN_DISTRICT_FIELD, gee_district),
         )
     ).first()
     return feature.geometry()
@@ -46,6 +47,15 @@ def mask_clouds(image: ee.Image) -> ee.Image:
     cloud_prob = ee.Image(image.get("cloud_mask")).select("probability")
     is_clear = cloud_prob.lt(CLOUD_PROB_THRESHOLD)
     return image.updateMask(is_clear).copyProperties(image, ["system:time_start"])
+
+
+def add_texture(image: ee.Image) -> ee.Image:
+    """Add the GEE GLCM texture bands used by the training pipeline."""
+    nir_int = image.select("B8").unitScale(0, 3000).multiply(255).toByte()
+    glcm = nir_int.glcmTexture(size=3)
+    contrast = glcm.select("B8_contrast").rename("TEXTURE_CONTRAST")
+    homogeneity = glcm.select("B8_idm").rename("TEXTURE_HOMOGENEITY")
+    return image.addBands([contrast, homogeneity])
 
 
 def build_composite(district: str, year: int) -> ee.Image:
@@ -77,7 +87,7 @@ def build_composite(district: str, year: int) -> ee.Image:
     masked = ee.ImageCollection(joined).map(mask_clouds)
     bands = list(S2_BANDS.values())
     composite = masked.select(bands).median().clip(geom)
-    return composite
+    return add_texture(composite)
 
 
 def export_composite(district: str, year: int) -> None:

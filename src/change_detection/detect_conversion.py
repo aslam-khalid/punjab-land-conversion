@@ -11,6 +11,7 @@ import numpy as np
 import rasterio
 
 from src.config import LAND_COVER_CLASSES
+from src.utils.geo_helpers import compute_pixel_area_ha
 
 AG_CLASS = [k for k, v in LAND_COVER_CLASSES.items() if v == "agricultural"][0]
 BUILTUP_CLASS = [k for k, v in LAND_COVER_CLASSES.items() if v == "built_up"][0]
@@ -20,6 +21,7 @@ def detect_conversion(before_path: Path, after_path: Path, out_path: Path) -> di
     with rasterio.open(before_path) as src_before:
         before = src_before.read(1)
         profile = src_before.profile.copy()
+        pixel_area_ha = compute_pixel_area_ha(src_before)
     with rasterio.open(after_path) as src_after:
         after = src_after.read(1)
 
@@ -36,7 +38,6 @@ def detect_conversion(before_path: Path, after_path: Path, out_path: Path) -> di
     with rasterio.open(out_path, "w", **profile) as dst:
         dst.write(converted.astype("uint8")[None, ...])
 
-    pixel_area_ha = abs(profile["transform"][0] * profile["transform"][4]) / 10_000
     stats = {
         "converted_pixels": int(converted.sum()),
         "converted_area_ha": float(converted.sum() * pixel_area_ha),

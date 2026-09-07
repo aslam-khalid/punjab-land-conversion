@@ -26,15 +26,16 @@ def init_gee() -> None:
 
     service_account = os.environ.get("GEE_SERVICE_ACCOUNT")
     key_file = os.environ.get("GEE_KEY_FILE")
+    project = os.environ.get("GEE_PROJECT")
 
     try:
         if service_account and key_file:
             credentials = ee.ServiceAccountCredentials(service_account, key_file)
-            ee.Initialize(credentials)
+            ee.Initialize(credentials, project=project)
         else:
             # Falls back to locally cached user credentials from
             # `earthengine authenticate`
-            ee.Initialize()
+            ee.Initialize(project=project)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(
             "Earth Engine initialization failed. Run `earthengine authenticate` "

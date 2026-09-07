@@ -14,6 +14,7 @@ from rasterio.features import shapes
 from shapely.geometry import shape
 
 from src.config import HOUSING_SOCIETY_BOUNDARIES_PATH, PROCESSED_DIR
+from src.utils.geo_helpers import compute_pixel_area_ha
 
 
 def rasterize_conversion_to_polygons(conversion_tif: Path) -> gpd.GeoDataFrame:
@@ -52,10 +53,16 @@ def aggregate_by_district(
     gdf = rasterize_conversion_to_polygons(conversion_tif)
     validation_pct = validate_against_housing_societies(gdf)
 
-    pixel_area_ha = 0.01  # 10m x 10m Sentinel-2 pixel = 100 sqm = 0.01 ha
+    with rasterio.open(conversion_tif) as src:
+        band = src.read(1)
+        converted_pixels = int((band == 1).sum())
+        pixel_area_ha = compute_pixel_area_ha(src)
+        converted_area_ha = float(converted_pixels * pixel_area_ha)
+
     result = {
         "district": district,
-        "converted_area_ha": len(gdf) * pixel_area_ha,
+        "converted_pixels": converted_pixels,
+        "converted_area_ha": converted_area_ha,
         "validation_overlap_pct": validation_pct,
     }
 

@@ -58,14 +58,14 @@ def generate_samples(
     # 50 (Built-up) -> 1 (built_up)
     # All others (Trees, Shrubland, Grassland, Barren, Water, Wetland) -> 2 (other)
     esa_src = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100]
-    our_dst = [ 2,  2,  2,  0,  1,  2,  2,  2,  2,  2,   2]
-    remapped_label = esa.remap(esa_src, our_dst, 2).rename("label")
+    our_dst = [ 0,  0,  3,  0,  1,  3,  3,  2,  3,  0,   3]
+    remapped_label = esa.remap(esa_src, our_dst, 3).rename("label")
     
     # Combine bands
     combined = composite_with_indices.addBands(remapped_label)
     
     # Select bands we need to sample
-    bands_to_sample = list(S2_BANDS.values()) + ["NDVI", "NDBI", "NDWI", "label"]
+    bands_to_sample = list(S2_BANDS.values()) + ["NDVI", "NDBI", "NDWI", "TEXTURE_CONTRAST", "TEXTURE_HOMOGENEITY", "label"]
     combined_selected = combined.select(bands_to_sample)
     
     print(f"Sampling {num_points_per_class} points per class...")
@@ -74,8 +74,8 @@ def generate_samples(
         classBand="label",
         region=geom,
         scale=10,
-        classValues=[0, 1, 2],
-        classPoints=[num_points_per_class] * 3,
+        classValues=[0, 1, 2, 3],
+        classPoints=[num_points_per_class] * 4,
         geometries=False,
     )
     
@@ -132,7 +132,7 @@ def main():
     parser.add_argument(
         "--num-points",
         type=int,
-        default=1500,
+        default=1000,
         help="Number of points to sample per class.",
     )
     parser.add_argument(

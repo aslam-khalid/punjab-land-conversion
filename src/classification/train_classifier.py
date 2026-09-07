@@ -1,8 +1,10 @@
 """
 Week 1 — Classification.
 
-Trains a per-pixel land-cover classifier (agricultural / built_up / other)
-on labeled samples with spectral bands + indices as features.
+Week 1 — Classification.
+
+Trains a per-pixel land-cover classifier (agricultural / built_up / water / barren)
+on labeled samples with spectral bands, indices, and texture features.
 
 Expects a training table (CSV or Parquet) with columns matching
 src.config.FEATURE_COLUMNS plus a "label" column (see LAND_COVER_CLASSES).
@@ -80,6 +82,17 @@ def train(training_table_path: Path, model_out_path: Path) -> None:
     model_out_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, model_out_path)
     print(f"Saved model to {model_out_path}")
+
+    # Print feature importances
+    if hasattr(model, "feature_importances_"):
+        importances = sorted(
+            zip(FEATURE_COLUMNS, model.feature_importances_),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+        print("\nFeature importances (top 10):")
+        for feat, imp in importances[:10]:
+            print(f"  {feat:25s}: {imp:.4f}")
 
 
 if __name__ == "__main__":

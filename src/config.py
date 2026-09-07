@@ -72,7 +72,8 @@ NDBI_BUILTUP_THRESHOLD = 0.0
 LAND_COVER_CLASSES = {
     0: "agricultural",
     1: "built_up",
-    2: "other",  # water, bare soil, roads, etc.
+    2: "water",
+    3: "barren",
 }
 CLASSIFIER_TYPE = "xgboost"  # "xgboost" | "random_forest" | "unet" (phase 2)
 RANDOM_SEED = 42
@@ -82,6 +83,8 @@ FEATURE_COLUMNS = [
     "NDVI",
     "NDBI",
     "NDWI",
+    "TEXTURE_CONTRAST",
+    "TEXTURE_HOMOGENEITY",
     "B2", "B3", "B4", "B8", "B11", "B12",
 ]
 
