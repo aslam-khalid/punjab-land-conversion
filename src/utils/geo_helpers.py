@@ -3,7 +3,13 @@ Geospatial helper functions for area calculations and CRS transformations.
 """
 
 import rasterio
+import geopandas as gpd
 from rasterio.warp import calculate_default_transform
+
+
+def to_metric_crs(gdf: gpd.GeoDataFrame, target_crs: str = "EPSG:32643") -> gpd.GeoDataFrame:
+    """Reproject a GeoDataFrame to a metric CRS for accurate area calculations."""
+    return gdf.to_crs(target_crs)
 
 
 def compute_pixel_area_m2(

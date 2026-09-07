@@ -14,7 +14,7 @@ from rasterio.features import shapes
 from shapely.geometry import shape
 
 from src.config import HOUSING_SOCIETY_BOUNDARIES_PATH, PROCESSED_DIR
-from src.utils.geo_helpers import compute_pixel_area_ha
+from src.utils.geo_helpers import compute_pixel_area_ha, to_metric_crs
 
 
 def rasterize_conversion_to_polygons(conversion_tif: Path) -> gpd.GeoDataFrame:
@@ -42,9 +42,11 @@ def validate_against_housing_societies(
     societies = gpd.read_file(societies_path).to_crs(conversion_gdf.crs)
     overlap = gpd.overlay(conversion_gdf, societies, how="intersection")
 
-    detected_area = conversion_gdf.geometry.area.sum()
-    overlap_area = overlap.geometry.area.sum()
-    return float(overlap_area / detected_area) if detected_area > 0 else float("nan")
+    conversion_gdf_utm = to_metric_crs(conversion_gdf)
+    overlap_utm = to_metric_crs(overlap)
+    detected_area = conversion_gdf_utm.geometry.area.sum()
+    overlap_area = overlap_utm.geometry.area.sum()
+    return float(overlap_area / detected_area * 100) if detected_area > 0 else float("nan")
 
 
 def aggregate_by_district(

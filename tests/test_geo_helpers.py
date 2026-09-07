@@ -4,11 +4,14 @@ Unit tests for geospatial helper utilities.
 
 from pathlib import Path
 import numpy as np
+import geopandas as gpd
 import rasterio
 from rasterio.transform import from_origin
 from rasterio.io import MemoryFile
+from shapely.geometry import box
 
-from src.utils.geo_helpers import compute_pixel_area_m2, compute_pixel_area_ha
+from src.aggregation.aggregate_and_validate import validate_against_housing_societies
+from src.utils.geo_helpers import compute_pixel_area_m2, compute_pixel_area_ha, to_metric_crs
 
 
 def create_memory_raster(crs_epsg: int, transform, width: int = 10, height: int = 10):
@@ -59,3 +62,28 @@ def test_compute_pixel_area_projected():
 
     dataset.close()
     memfile.close()
+
+
+def test_to_metric_crs_reprojects_geometries():
+    """Test that area calculations can use metric units after reprojection."""
+    gdf = gpd.GeoDataFrame(geometry=[box(73.0, 31.5, 73.001, 31.501)], crs="EPSG:4326")
+
+    projected = to_metric_crs(gdf)
+
+    assert projected.crs.to_epsg() == 32643
+    assert projected.geometry.area.iloc[0] > 0
+
+
+def test_validation_overlap_is_percentage_without_geographic_area_warning(tmp_path):
+    """Test overlap validation uses projected geometry areas and returns percent."""
+    conversion = gpd.GeoDataFrame(
+        geometry=[box(73.0, 31.5, 73.002, 31.502)], crs="EPSG:4326"
+    )
+    societies_path = tmp_path / "societies.geojson"
+    gpd.GeoDataFrame(
+        geometry=[box(73.0, 31.5, 73.001, 31.502)], crs="EPSG:4326"
+    ).to_file(societies_path, driver="GeoJSON")
+
+    overlap_pct = validate_against_housing_societies(conversion, societies_path)
+
+    assert 49.0 < overlap_pct < 51.0
