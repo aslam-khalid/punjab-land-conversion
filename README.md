@@ -1,87 +1,86 @@
-# Automated Detection & Mapping of Agricultural-to-Urban Land Conversion — Punjab
+# Punjab Land Conversion Detection
 
-AIRI Team / PITB internship project. Detects and quantifies farmland-to-urban
-conversion across Punjab districts using multi-temporal Sentinel-2 imagery.
+Automated detection and mapping of agricultural-to-urban land conversion in Punjab, Pakistan, using multi-temporal Sentinel-2 satellite imagery and machine learning. Built as part of a PITB AIRI Team internship project.
 
-## Project structure
+## Problem
 
-```
-auc-punjab/
-├── data/
-│   ├── raw/               # downloaded Sentinel-2 composites, housing society boundaries
-│   ├── interim/           # spectral indices, intermediate rasters
-│   └── processed/         # classified rasters, district-level conversion results
-├── src/
-│   ├── config.py          # districts, years, GEE settings, all shared params
-│   ├── acquisition/       # Week 1 — Sentinel-2 retrieval via Google Earth Engine
-│   ├── features/          # Week 1 — NDVI / NDBI / NDWI computation
-│   ├── classification/    # Week 1 — XGBoost/Random Forest land-cover classifier
-│   ├── change_detection/  # Week 2 — pixel-level ag→urban transition detection
-│   ├── aggregation/       # Week 2 — district rollup + housing-society validation
-│   └── utils/             # GEE auth, shared helpers
-├── dashboard/
-│   ├── backend/           # Week 3 — FastAPI serving conversion GeoJSON
-│   └── frontend/          # Week 3 — Streamlit map + time slider
-├── models/                 # trained classifier artifacts (.joblib)
-├── notebooks/               # exploration / QA notebooks
-├── reports/                 # district-level report outputs
-└── tests/
-```
+Punjab has seen rapid, largely unmonitored conversion of agricultural land into private housing societies over the past decade. There is currently no automated, province-wide method to measure how much farmland has been lost to real estate development, or to identify which areas are converting fastest. This project builds a pipeline to detect and quantify that conversion directly from satellite imagery.
+
+## How it works
+
+1. **Data acquisition** — Sentinel-2 imagery (10m resolution) pulled via Google Earth Engine for two time points (e.g. 2019, 2025)
+2. **Feature extraction** — spectral indices (NDVI, NDBI, NDWI) plus GLCM texture bands (contrast, homogeneity) computed server-side in GEE
+3. **Classification** — an XGBoost pixel classifier labels each pixel as agricultural, built-up, water, or barren
+4. **Change detection** — pixel-level comparison between the two years flags agricultural → built-up transitions
+5. **Noise filtering** — a minimum mapping unit (MMU) filter removes small isolated pixel noise, followed by a compactness filter that removes elongated linear artifacts (roads, canals, field boundaries) that survive size filtering
+6. **Validation** — detected conversion zones are checked against known housing society locations to sanity-check results
+7. **Aggregation** — results are vectorized and summarized as total converted hectares, with per-patch detail available for manual inspection
+
+## Pipeline
+fetch_sentinel2.py → pulls & exports Sentinel-2 composites from GEE
+generate_training_data.py → samples training pixels using ESA WorldCover labels
+train_classifier.py → trains the XGBoost land-cover classifier
+classify_raster.py → applies the trained model to a full composite
+detect_conversion.py → compares two classified rasters, filters noise (MMU + compactness)
+aggregate_and_validate.py → vectorizes results, validates against known housing societies
+run_change_detection.py → orchestrates the full pipeline end-to-end
+
+Validation utilities:
+plot_conversion_vs_societies.py → visual overlay of detected conversion vs. reference societies
+inspect_largest_patches.py → prints largest detected patches with coordinates for manual spot-checking
 
 ## Setup
 
-```bash
+bash
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 
-# One-time Earth Engine auth (opens a browser)
-earthengine authenticate
-```
 
-For server/dashboard use, copy `.env.example` to `.env` and fill in a GEE
-service account instead of interactive auth.
+Copy `.env.example` to `.env` and fill in:
 
-## Pipeline (matches the 3-week plan in the proposal)
+GEE_SERVICE_ACCOUNT=<your-service-account-email>
+GEE_KEY_FILE=<path-to-service-account-key.json>
 
-**Week 1 — Data pipeline & model development**
-```bash
-python -m src.acquisition.fetch_sentinel2 --district Lahore --year 2025
-python -m src.features.spectral_indices data/raw/s2_lahore_2025.tif
-python -m src.classification.train_classifier data/processed/training_samples.csv
-```
 
-**Week 2 — Change detection & validation**
-```bash
-python -m src.change_detection.detect_conversion \
-    data/processed/lahore_2019_classified.tif \
-    data/processed/lahore_2025_classified.tif \
-    --out data/processed/lahore_2019_2025_conversion.tif
+## Usage
 
-python -m src.aggregation.aggregate_and_validate Lahore \
-    data/processed/lahore_2019_2025_conversion.tif
-```
+bash
+# 1. Export satellite composites for a district and year
+python -m src.acquisition.fetch_sentinel2 --district Faisalabad --year 2019
+python -m src.acquisition.fetch_sentinel2 --district Faisalabad --year 2025
 
-**Week 3 — Dashboard**
-```bash
-uvicorn dashboard.backend.main:app --reload --port 8000
-# in a second terminal:
-streamlit run dashboard/frontend/app.py
-```
+# 2. Download exported tiles from Google Drive into data/raw/, then merge
+python merge_tiles.py
 
-## Study area (Phase 1)
+# 3. Run the full change detection pipeline
+python -m src.pipeline.run_change_detection --district Faisalabad
 
-Lahore, Sheikhupura, Kasur, Faisalabad, Multan, Rawalpindi — see `src/config.py`
-to add districts for the province-wide phase 2 rollout.
+# 4. Inspect and validate results
+python -m src.validation.plot_conversion_vs_societies
+python -m src.validation.inspect_largest_patches
 
-## Notes
 
-- Sentinel-2 composites use a Nov–Feb dry-season window per year to minimize
-  cloud cover and maximize contrast between bare/harvested farmland and
-  built-up surfaces.
-- `data/raw/housing_societies.geojson` is expected for validation (Section 5,
-  "Aggregation and validation" in the proposal) — source this from PITB/LDA
-  records or digitize known DHA/Bahria Town boundaries.
-- Classifier defaults to XGBoost per the proposal; switch `CLASSIFIER_TYPE`
-  in `src/config.py` to `"random_forest"` if needed. U-Net segmentation is
-  scoped as a phase-two extension.
+## Current results (Faisalabad, 2019–2025)
+
+| Metric | Value |
+|---|---|
+| Total converted area (post-filtering) | ~412 ha |
+| Retained patches (after MMU + compactness filtering) | in progress |
+| Validation overlap (6 reference societies) | 0.35% (pre-shape-filter) |
+
+## Known limitations
+
+- **Classifier accuracy**: overall pixel classification accuracy is ~73%. Built-up vs. barren remains the hardest boundary (barren precision ~0.57) since dry soil and concrete can be spectrally similar.
+- **Validation reference set is small**: only 6 well-established housing societies are used as ground truth. Most are older developments whose conversion likely predates the 2019–2025 study window, which limits direct overlap validation. Results should be cross-checked manually (see `inspect_largest_patches.py`) rather than trusted on overlap percentage alone.
+- **Shape-based false positives**: raw per-pixel change detection is prone to flagging roads, canals, and field boundaries as "conversion." A compactness filter is applied to reduce this, but manual spot-checking of top-detected patches is still recommended before reporting final figures.
+- **Single time-period comparison**: results reflect only two snapshots (2019, 2025) and do not capture the pattern or timing of conversion within that window.
+- **District scope**: currently implemented and validated for Faisalabad only; not yet run province-wide.
+
+## Tech stack
+
+Google Earth Engine, Python (rasterio, geopandas, scikit-image, scipy), XGBoost, matplotlib
+
+## Author
+
+Muhammad Aslam Khalid — AIRI Team Intern, Punjab Information Technology Board (PITB)
