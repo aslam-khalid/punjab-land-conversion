@@ -31,3 +31,10 @@ venv/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Large geospatial data
+*.tif
+*.tiff
+*.joblib
+data/raw/
+data/processed/
